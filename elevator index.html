@@ -1,0 +1,208 @@
+<!doctype html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>공포의 엘리베이터 — 텍스트 어드벤처</title>
+<style>
+  :root{--bg:#07080a;--card:#0f1316;--muted:#bfc8cf;--accent:#f7f3f8}
+  html,body{height:100%;margin:0;font-family:Inter, 'Noto Sans KR', system-ui, -apple-system; background:radial-gradient(circle at 10% 10%, #07121a, var(--bg));color:var(--accent)}
+  .wrap{max-width:920px;margin:28px auto;padding:20px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  h1{margin:0;font-size:1.4rem}
+  p.lead{margin:6px 0 18px;color:var(--muted)}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+  .log{min-height:220px;max-height:420px;overflow:auto;padding:12px;border-radius:8px;background:linear-gradient(180deg, rgba(0,0,0,0.1), transparent);}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  button{background:rgba(255,255,255,0.04);color:var(--accent);border:1px solid rgba(255,255,255,0.06);padding:10px 12px;border-radius:8px;cursor:pointer}
+  .btn-primary{background:#c33c3c;border-color:#a22;text-shadow:0 1px 0 rgba(0,0,0,0.6)}
+  .floors{display:flex;flex-wrap:wrap;gap:6px;max-width:360px}
+  .floor-btn{width:48px;text-align:center}
+  .status{margin-top:12px;color:var(--muted);font-size:13px}
+  /* ghost */
+  .ghost-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:60}
+  svg.ghost{width:46vmin;max-width:520px;filter:drop-shadow(0 12px 60px rgba(0,0,0,0.8));opacity:0;transform:scale(0.6);transition:transform 360ms cubic-bezier(.2,.9,.3,1),opacity 240ms}
+  .is-scare svg.ghost{opacity:1;transform:scale(1.3) rotate(-8deg)}
+  .scare-overlay{position:fixed;inset:0;z-index:50;pointer-events:none;background:transparent;transition:background 220ms}
+  .flash{animation:flash 220ms ease-out}
+  @keyframes flash{0%{background:rgba(255,255,255,0)}40%{background:rgba(255,255,255,0.92)}100%{background:rgba(255,255,255,0)}}
+  /* responsive */
+  @media (max-width:640px){.floors{max-width:100%}.ghost-wrap{pointer-events:none}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>공포의 엘리베이터</h1>
+        <p class="lead">1층에서 탑승 — 17층까지 올라가는 동안 선택으로 진행되는 텍스트 게임입니다. 각 층마다 상황 설명과 선택지가 나오고, 특정 순간 귀신이 갑툭튀 합니다. (주의: 시각/청각 자극)</p>
+      </div>
+      <div style="text-align:right;color:#9fb3c6;font-size:13px">저장: 자동 | 호스팅: GitHub Pages 가능</div>
+    </header><section class="card" id="gameCard">
+  <div class="log" id="log" aria-live="polite"></div>
+
+  <div class="controls" id="controls">
+    <div>
+      <div style="font-size:13px;color:var(--muted)">현재 층</div>
+      <div id="currentFloor" style="font-weight:700;font-size:20px">1층</div>
+    </div>
+
+    <div>
+      <div style="font-size:13px;color:var(--muted)">엘리베이터 버튼</div>
+      <div class="floors" id="floors"></div>
+    </div>
+
+    <div style="margin-left:auto;display:flex;flex-direction:column;gap:8px">
+      <button id="openBtn">문 열기</button>
+      <button id="closeBtn">문 닫기</button>
+      <button id="goBtn" class="btn-primary">선택 실행</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">상태: 엘리베이터 대기 중. (ESC 누르면 자동 오디오 중지)</div>
+</section>
+
+<section style="margin-top:14px;text-align:center;color:var(--muted)">
+  <small>게임 목표: 17층 도달. 중도 하차하거나 포기를 선택할 수 있음.</small>
+</section>
+
+  </div>  <!-- scare elements -->  <div class="scare-overlay" id="scareOverlay"></div>
+  <div class="ghost-wrap" id="ghostWrap">
+    <svg class="ghost" id="ghostSVG" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g transform="translate(0,6)">
+        <path d="M100 12 C60 12 46 44 46 80 C46 120 58 138 58 138 L40 160 L58 172 L76 160 L90 172 L108 160 L122 172 L140 160 L122 138 C122 138 140 120 140 80 C140 44 120 12 100 12 Z" fill="#f5fbff" stroke="#dbefff" stroke-width="2" filter="url(#glow)"/>
+        <ellipse cx="82" cy="84" rx="8" ry="12" fill="#111" opacity="0.95"/>
+        <ellipse cx="118" cy="84" rx="8" ry="12" fill="#111" opacity="0.95"/>
+        <path d="M78 108 C88 118 112 118 122 108" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+      </g>
+    </svg>
+  </div><script>
+  // -- 게임 상태 --
+  const totalFloors = 17;
+  let floor = 1;
+  let selectedFloor = null;
+  let elevatorClosed = true;
+  let logEl = document.getElementById('log');
+  let currentFloorEl = document.getElementById('currentFloor');
+  let floorsEl = document.getElementById('floors');
+  let statusEl = document.getElementById('status');
+  let openBtn = document.getElementById('openBtn');
+  let closeBtn = document.getElementById('closeBtn');
+  let goBtn = document.getElementById('goBtn');
+  let ghostWrap = document.getElementById('ghostWrap');
+  let ghost = document.getElementById('ghostSVG');
+  let scareOverlay = document.getElementById('scareOverlay');
+
+  // populate floor buttons
+  for(let i=1;i<=totalFloors;i++){
+    const b = document.createElement('button'); b.textContent = i+'층'; b.className='floor-btn';
+    b.addEventListener('click', ()=>{ selectFloor(i); });
+    floorsEl.appendChild(b);
+  }
+
+  function appendLog(txt, cls=''){
+    const p = document.createElement('div'); p.innerHTML = txt; if(cls) p.className=cls;
+    logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function selectFloor(n){ selectedFloor = n; appendLog(`<strong>선택:</strong> ${n}층 버튼을 눌렀다.`); updateStatus(); }
+  function updateStatus(){ currentFloorEl.textContent = floor+'층'; statusEl.textContent = `상태: ${elevatorClosed? '문 닫힘':'문 열림'} | 선택된 층: ${selectedFloor? selectedFloor+'층':'없음'}` }
+
+  openBtn.addEventListener('click', ()=>{ elevatorClosed=false; appendLog('문을 열었다. 복도에는 어두운 침묵...'); updateStatus(); });
+  closeBtn.addEventListener('click', ()=>{ elevatorClosed=true; appendLog('문을 닫았다. 버튼을 누르거나 층을 선택하라.'); updateStatus(); });
+
+  goBtn.addEventListener('click', ()=>{
+    if(!selectedFloor){ appendLog('<em>먼저 가고 싶은 층을 선택하세요.</em>'); return }
+    if(!elevatorClosed){ appendLog('<em>문을 먼저 닫아야 합니다.</em>'); return }
+    if(selectedFloor===floor){ appendLog('<em>이미 그 층에 있습니다.</em>'); return }
+    // 이동 시작
+    appendLog(`<strong>엘리베이터가 ${selectedFloor}층으로 이동 시작...</strong>`);
+    moveToFloor(selectedFloor);
+  });
+
+  // 간단한 오디오: 짧은 노이즈 기반 섬뜩한 소리
+  const AudioCtx = (window.AudioContext||window.webkitAudioContext)? new (window.AudioContext||window.webkitAudioContext)(): null;
+  function playScream(duration=520, vol=0.5){ if(!AudioCtx) return; const ctx=AudioCtx; const sr=ctx.sampleRate; const len=Math.floor(sr*(duration/1000)); const buffer=ctx.createBuffer(1,len,sr); const data=buffer.getChannelData(0);
+    for(let i=0;i<len;i++){ const t=i/len; const env=Math.pow(1-t,2.5); data[i] = (Math.random()*2-1) * env; }
+    const src=ctx.createBufferSource(); src.buffer=buffer; const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=900; const g=ctx.createGain(); g.gain.value=vol; src.connect(hp); hp.connect(g); g.connect(ctx.destination); try{ if(ctx.state==='suspended') ctx.resume(); }catch(e){} src.start(); setTimeout(()=>{ try{src.stop()}catch(e){} }, duration+50);
+  }
+
+  // 이동 애니메이션: 층을 한 층씩 지나가면서 서술
+  async function moveToFloor(target){
+    const dir = target>floor?1:-1;
+    while(floor !== target){
+      await wait(700); // 문 닫힌 후 출발
+      floor += dir; updateStatus(); appendLog(`... ${floor}층 지나간다.`);
+      // 각 층 도달시 이벤트
+      await wait(500);
+      // 17층으로 갈수록 귀신 등장 확률 증가
+      const baseChance = 0.12 + (floor/totalFloors)*0.6; // 대략 12%~72%
+      const rand = Math.random();
+      if(rand < baseChance || [2,3,4,7,13,17].includes(floor)){
+        // 강제/랜덤 점프스케어
+        await triggerScare(floor);
+      } else {
+        // 짧은 서술
+        appendLog(`(${floor}층): 조용히 희미한 발소리가 들린다...`);
+      }
+    }
+    appendLog(`<strong>엘리베이터가 ${floor}층에 도착했다.</strong>`);
+    // 도착시 선택: 내릴래? 계속 갈래?
+    appendLog(`선택: <button onclick="onChoice_exit()">내리기</button>  <button onclick="onChoice_continue()">문 닫고 계속</button>`);
+    // reset selected floor to null to force explicit actions
+    selectedFloor = null; updateStatus();
+  }
+
+  function onChoice_exit(){ appendLog('<strong>당신은 떨리는 손으로 문을 열고 내렸다...</strong>'); appendLog('게임 오버: 안전한 선택이었을까? (다시 시작하려면 새로고침)'); }
+  function onChoice_continue(){ appendLog('문을 닫았다. 계속 올라간다...'); }
+
+  function wait(ms){ return new Promise(res=>setTimeout(res,ms)); }
+
+  // 점프스케어 연출
+  let scareBusy=false;
+  async function triggerScare(floorTriggered){ if(scareBusy) return; scareBusy=true;
+    appendLog(`<strong>!!! 경고: ${floorTriggered}층에서 이상한 기운이 느껴진다 !!!</strong>`);
+    // flash + ghost
+    scareOverlay.classList.add('flash'); document.body.classList.add('is-scare');
+    ghost.style.transition='transform 260ms cubic-bezier(.2,.9,.3,1),opacity 160ms'; ghost.style.opacity='1'; ghost.style.transform='scale(1.25) rotate(' + (Math.floor(Math.random()*20)-10) + 'deg)';
+    // 작은 진동 효과(모바일에선 불규칙)
+    try{ if(navigator.vibrate) navigator.vibrate([120,60,90]); }catch(e){}
+    playScream(480 + Math.floor(Math.random()*220), 0.18 + Math.random()*0.25);
+    await wait(700 + Math.floor(Math.random()*400));
+    ghost.style.transform='scale(0.68)'; ghost.style.opacity='0'; document.body.classList.remove('is-scare'); scareOverlay.classList.remove('flash');
+    // 추가: 층에 따라 짧은 이상한 텍스트
+    const notes = {
+      2: '문틈에 검은 손자국이 묻어 있다.',
+      3: '엘리베이터 버튼 하나가 스스로 깜박인다.',
+      4: '거울 속에서 누군가 당신을 바라본다.',
+      7: '어떤 목소리가 숫자를 중얼거린다: "열일곱..."',
+      13: '승객 목록에 당신 외에 이름이 또 있다.',
+      17: '문이 열리면... 모든 것이 다를 것이다.'
+    };
+    appendLog(`(${floorTriggered}층) ${notes[floorTriggered] || '어둠 속에서 차가운 숨결이 스친다.'}`);
+    await wait(420);
+    scareBusy=false;
+  }
+
+  // 초기 로그
+  appendLog('<strong>당신은 1층 로비에서 엘리베이터에 탔다.</strong> 문이 닫혔다. 어디로 갈까?'); updateStatus();
+
+  // 키보드 단축
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape'){ try{ if(AudioCtx && AudioCtx.state==='running') AudioCtx.suspend(); }catch(e){} appendLog('<em>오디오 재생 중지</em>'); }
+  });
+
+  // 자동으로 GitHub 업로드용 파일로 동작 — 안내 메시지
+  appendLog('<small>파일을 저장하려면 오른쪽 상단 메뉴에서 HTML을 다운로드하여 GitHub 저장소에 업로드하세요.</small>');
+
+  // 접근성: 게임 내 버튼으로 실행되는 inline onclick을 전역에 노출
+  window.onChoice_exit = onChoice_exit; window.onChoice_continue = onChoice_continue;
+</script></body>
+</html>
